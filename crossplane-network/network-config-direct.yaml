@@ -1,0 +1,60 @@
+#### network-config file - Centralized TGW & Dedicated Tenant04 TGW - Multi Region Multi Tenant ###########
+
+homeRegion: &HOME_REGION us-east-1
+
+#####################################
+# Delete default VPCs
+#####################################
+defaultVpc:
+  delete: true
+  excludeAccounts: []
+
+##############################################
+# Transit Gateways- Region - us-east-1
+##############################################
+
+transitGateways:
+  - name: atos-pcsaws-dev-tgw01-us-east-1
+    account: Network
+    region: *HOME_REGION
+    shareTargets:
+      organizationalUnits:
+        - PCS
+        - Infrastructure
+    asn: 65521
+    dnsSupport: enable
+    vpnEcmpSupport: enable
+    defaultRouteTableAssociation: disable
+    defaultRouteTablePropagation: disable
+    autoAcceptSharingAttachments: enable
+    routeTables:
+      - name: Network-Main-Egress
+        routes: []
+        tags:
+          - key: "AtosManaged"
+            value: "true"
+          - key: "CentralizedNetwork"
+            value: "true"
+    tags:
+      - key: "AtosManaged"
+        value: "true"
+      - key: "CentralizedNetwork"
+        value: "true"
+
+vpcs:
+  - name: atos-pcsaws-dev-vpc00-us-east-1
+    account: Network
+    region: *HOME_REGION
+    cidrs:
+      - 10.0.0.0/22
+    defaultSecurityGroupRulesDeletion: true
+    internetGateway: true
+    enableDnsHostnames: true
+    enableDnsSupport: true
+    instanceTenancy: default
+    useCentralEndpoints: true
+    tags:
+      - key: "AtosManaged"
+        value: "true"
+      - key: "CentralizedNetwork"
+        value: "true"
