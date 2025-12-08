@@ -1,0 +1,23 @@
+homeRegion: us-east-1
+enabledRegions:
+  - us-east-1
+  - us-west-2
+managementAccountAccessRole: AWSControlTowerExecution
+cloudwatchLogRetentionInDays: 365
+terminationProtection: true
+controlTower:
+  enable: true
+logging:
+  account: LogArchive
+  cloudtrail:
+    enable: true
+    organizationTrail: true
+  sessionManager:
+    sendToCloudWatchLogs: true
+    sendToS3: true
+backup:
+  vaults:
+    - name: BackupVault
+      deploymentTargets:
+        organizationalUnits:
+          - Root
