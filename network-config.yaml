@@ -1,0 +1,163 @@
+homeRegion: &HOME_REGION us-east-1
+enableDnsLogs: true
+enableDnsFirewall: false
+
+centralNetworkServices:
+  delegatedAdminAccount: Network
+  ipams:
+    - name: accelerator-ipam
+      description: Accelerator IPAM
+      region: *HOME_REGION
+      operatingRegions:
+        - *HOME_REGION
+        - us-west-2
+      pools:
+        - name: base-pool
+          description: Base IP pool
+          provisionedCidrs:
+            - 10.0.0.0/8
+
+dhcpOptions:
+  - name: accelerator-dhcp-opts
+    accounts:
+      - Network
+    regions:
+      - *HOME_REGION
+    domainName: example.com
+    domainNameServers:
+      - AmazonProvidedDNS
+    tags:
+      - key: Name
+        value: accelerator-dhcp-options
+
+vpcs:
+  - name: Network-Main
+    account: Network
+    region: *HOME_REGION
+    cidrs:
+      - 10.0.0.0/16
+    dhcpOptions: accelerator-dhcp-opts
+    enableDnsHostnames: true
+    enableDnsSupport: true
+    instanceTenancy: default
+    internetGateway: true
+    natGateways:
+      - name: Network-Main-nat-gw-a
+        subnet: Network-Main-nat-a
+    routeTables:
+      - name: Network-Main-rt-public
+        routes:
+          - name: default-route
+            destination: 0.0.0.0/0
+            target: Network-Main-igw
+            type: internetGateway
+      - name: Network-Main-rt-private-a
+        routes:
+          - name: default-route
+            destination: 0.0.0.0/0
+            target: Network-Main-nat-gw-a
+            type: natGateway
+    subnets:
+      - name: Network-Main-public-a
+        availabilityZone: a
+        routeTable: Network-Main-rt-public
+        ipv4CidrBlock: 10.0.1.0/24
+        mapPublicIpOnLaunch: true
+        tags:
+          - key: Name
+            value: Network-Main-public-a
+      - name: Network-Main-nat-a
+        availabilityZone: a
+        routeTable: Network-Main-rt-public
+        ipv4CidrBlock: 10.0.2.0/24
+        mapPublicIpOnLaunch: true
+        tags:
+          - key: Name
+            value: Network-Main-nat-a
+      - name: Network-Main-private-a
+        availabilityZone: a
+        routeTable: Network-Main-rt-private-a
+        ipv4CidrBlock: 10.0.10.0/24
+        tags:
+          - key: Name
+            value: Network-Main-private-a
+    securityGroups:
+      - name: Network-Main-default-sg
+        description: Default security group
+        inboundRules:
+          - description: Allow HTTPS
+            types:
+              - tcp
+            tcpPorts:
+              - 443
+            sources:
+              - account: Network
+                vpc: Network-Main
+        outboundRules:
+          - description: All outbound
+            types:
+              - ALL
+            destinations:
+              - account: Network
+                vpc: Network-Main
+        tags:
+          - key: Name
+            value: Network-Main-default-sg
+    vpcFlowLogs:
+      trafficType: ALL
+      maxAggregationInterval: 600
+      destinations:
+        - cloud-watch-logs
+      defaultFormat: false
+      customFields:
+        - account-id
+        - interface-id
+        - srcaddr
+        - dstaddr
+        - srcport
+        - dstport
+        - protocol
+        - packets
+        - bytes
+        - windowstart
+        - windowend
+        - action
+        - flowlogstatus
+    tags:
+      - key: Name
+        value: Network-Main
+
+vpcEndpoints:
+  - name: s3-endpoint
+    account: Network
+    region: *HOME_REGION
+    service: s3
+    vpc: Network-Main
+    type: Gateway
+    routeTables:
+      - Network-Main-rt-private-a
+    tags:
+      - key: Name
+        value: s3-gateway-endpoint
+
+transitGateways:
+  - name: Network-Main-tgw
+    account: Network
+    region: *HOME_REGION
+    asn: 64512
+    dnsSupport: enable
+    vpnEcmpSupport: enable
+    defaultRouteTableAssociation: enable
+    defaultRouteTablePropagation: enable
+    autoAcceptSharingAttachments: enable
+    routeTables:
+      - name: Network-Main-tgw-rt
+        tags:
+          - key: Name
+            value: Network-Main-tgw-rt
+    shareTargets:
+      organizationalUnits:
+        - Infrastructure
+    tags:
+      - key: Name
+        value: Network-Main-tgw
