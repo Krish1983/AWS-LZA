@@ -1,0 +1,86 @@
+homeRegion: &HOME_REGION us-east-1
+enableDnsLogs: true
+enableDnsFirewall: false
+
+centralNetworkServices:
+  delegatedAdminAccount: Network
+  ipams:
+    - name: accelerator-ipam
+      description: Accelerator IPAM
+      region: *HOME_REGION
+      operatingRegions:
+        - *HOME_REGION
+        - us-west-2
+      pools:
+        - name: base-pool
+          description: Base IP pool
+          provisionedCidrs:
+            - 10.0.0.0/8
+
+dhcpOptions:
+  - name: accelerator-dhcp-opts
+    accounts:
+      - Network
+    regions:
+      - *HOME_REGION
+    domainName: example.com
+    domainNameServers:
+      - AmazonProvidedDNS
+    tags:
+      - key: Name
+        value: accelerator-dhcp-options
+
+vpcs:
+  - name: Network-Main
+    account: Network
+    region: *HOME_REGION
+    cidrs:
+      - 10.1.0.0/16
+    internetGateway: true
+    enableDnsHostnames: true
+    enableDnsSupport: true
+    instanceTenancy: default
+    routeTables:
+      - name: Network-Main-Tgw-A
+        routes: []
+      - name: Network-Main-Tgw-B
+        routes: []
+    subnets:
+      - name: Network-Main-Tgw-A
+        availabilityZone: a
+        routeTable: Network-Main-Tgw-A
+        ipv4CidrBlock: 10.1.0.0/27
+        tags:
+          - key: Name
+            value: Network-Main-Tgw-A
+      - name: Network-Main-Tgw-B
+        availabilityZone: b
+        routeTable: Network-Main-Tgw-B
+        ipv4CidrBlock: 10.1.0.32/27
+        tags:
+          - key: Name
+            value: Network-Main-Tgw-B
+    tags:
+      - key: Name
+        value: Network-Main
+
+transitGateways:
+  - name: Network-Main-Tgw
+    account: Network
+    region: *HOME_REGION
+    asn: 64512
+    dnsSupport: enable
+    vpnEcmpSupport: enable
+    defaultRouteTableAssociation: enable
+    defaultRouteTablePropagation: enable
+    autoAcceptSharingAttachments: enable
+    routeTables:
+      - name: Network-Main-Tgw-Rt
+        routes:
+          - destinationCidrBlock: 0.0.0.0/0
+            attachment:
+              vpcName: Network-Main
+              account: Network
+    tags:
+      - key: Name
+        value: Network-Main-Tgw
