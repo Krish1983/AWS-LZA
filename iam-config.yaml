@@ -1,0 +1,187 @@
+homeRegion: &HOME_REGION us-east-1
+
+# Customer Identity Center Configuration
+identityCenter:
+  name: Customer-IdentityCenter
+  region: *HOME_REGION
+  identitySource:
+    type: EXTERNAL_IDENTITY_PROVIDER
+    externalIdentityProviderConfiguration:
+      protocol: SAML
+      identityProviderName: CustomerIdP
+      signInUrl: https://customer-identity-provider.com/sso
+      issuerUrl: https://customer-identity-provider.com/metadata
+      requestSigningCertificate: |
+        -----BEGIN CERTIFICATE-----
+        # Customer's certificate content here
+        -----END CERTIFICATE-----
+
+# Policy Sets
+policySets:
+  - deploymentTargets:
+      organizationalUnits:
+        - Root
+    policies:
+      - name: atos-pcsaws-cicd-iam-policy
+        policy: iam-policies/atos-pcsaws-cicd-iam-policy.json
+        
+# Customer Workload Accounts Policy Sets
+  - deploymentTargets:
+      organizationalUnits:
+        - Infrastructure
+        - Infrastructure/Tnt0
+        - Infrastructure/Tnt3
+        - Infrastructure/Tnt4
+    policies:
+      - name: CUSTOMER-AWS-BACKUP-SERVICE-IAM-POLICY
+        policy: iam-policies/customer-iam-role-backup-service-policy.json
+      - name: PCSAWS-OS-ADMIN-IAM-POLICY
+        policy: iam-policies/pcsaws-os-admin-iam-policy.json
+      - name: PCSAWS-RDS-ADMIN-IAM-POLICY
+        policy: iam-policies/pcsaws-rds-admin-iam-policy.json
+      - name: PCSAWS-EFS-ADMIN-IAM-POLICY
+        policy: iam-policies/pcsaws-efs-admin-iam-policy.json
+      - name: PCSAWS-EFS-READWRITE-IAM-POLICY
+        policy: iam-policies/pcsaws-efs-readwrite-ec2-console-iam-policy.json
+      - name: PCSAWS-FSX-READWRITE-IAM-POLICY
+        policy: iam-policies/pcsaws-fsx-readwrite-iam-policy.json
+      - name: PCSAWS-S3-ADMIN-IAM-POLICY
+        policy: iam-policies/pcsaws-s3-admin-iam-policy.json
+      - name: PCSAWS-S3-READWRITE-IAM-POLICY
+        policy: iam-policies/pcsaws-s3-readwrite-iam-policy.json
+        
+# Service Account Policy Sets
+  - deploymentTargets:
+      organizationalUnits:
+        - PCS
+        - Infrastructure
+    policies:
+      - name: PCSAWS-BACKUP-ADMIN-IAM-POLICY
+        policy: iam-policies/pcsaws-backup-admin-iam-policy.json
+      - name: PCSAWS-BACKUP-SERVICE-IAM-POLICY
+        policy: iam-policies/pcsaws-iam-role-backup-service-policy.json
+        
+# Network Account Discovery Policy
+  - deploymentTargets:
+      organizationalUnits:
+        - Infrastructure
+      accounts:
+        - Network
+    policies:
+      - name: atos-pcsaws-discovery-users-iam-policy
+        policy: iam-policies/atos-pcsaws-discovery-user-policy.json
+
+# Role Sets
+roleSets:
+  # Root Organization Roles
+  - deploymentTargets:
+      organizationalUnits:
+        - Root
+    roles:
+      - name: atos-pcsaws-cicd-iam-role
+        description: PCS AWS CICD Role
+        assumedBy:
+          - type: account
+            principal: 'arn:aws:iam::846401656522:root'
+          - type: service
+            principal: 'cloudformation.amazonaws.com'
+          - type: service
+            principal: 'servicecatalog.amazonaws.com'
+          - type: service
+            principal: 'ec2.amazonaws.com'
+          - type: service
+            principal: 'codepipeline.amazonaws.com'
+        policies:
+          customerManaged:
+            - atos-pcsaws-cicd-iam-policy
+            
+  # Services Account Roles
+  - deploymentTargets:
+      accounts:
+        - Services
+    roles:
+      - name: AWSCloudFormationStackSetAdministrationRole
+        description: PCS AWS Stackset Admin Role
+        assumedBy:
+          - type: account
+            principal: 'arn:aws:iam::846401656522:root'
+          - type: service
+            principal: 'cloudformation.amazonaws.com'
+          - type: service
+            principal: 'codepipeline.amazonaws.com'
+        policies:
+          awsManaged:
+            - AdministratorAccess
+            - AmazonSSMFullAccess
+            
+  # PCS Organization Backup Roles
+  - deploymentTargets:
+      organizationalUnits:
+        - PCS
+    roles:
+      - name: pcsaws-iam-role-backup-service
+        description: PCS AWS backup Role to manage backup and restore operations
+        assumedBy:
+          - type: service
+            principal: 'backup.amazonaws.com'
+        policies:
+          customerManaged:
+            - PCSAWS-BACKUP-SERVICE-IAM-POLICY
+            - PCSAWS-BACKUP-ADMIN-IAM-POLICY
+          awsManaged:
+            - service-role/AWSBackupServiceRolePolicyForBackup
+            - service-role/AWSBackupServiceRolePolicyForRestores
+            - AWSBackupOperatorAccess
+            
+  # Audit and LogArchive Account Roles
+  - deploymentTargets:
+      accounts:
+        - Audit
+        - LogArchive
+    roles:
+      - name: Atos-Auditor-atostf
+        description: "This role is intended for use by Atos staff for review / auditing purposes. Read only access to all services"
+        assumedBy:
+          - type: account
+            principal: 'arn:aws:iam::861491417048:root'
+        policies:
+          awsManaged:
+            - ReadOnlyAccess
+      - name: Customer-Auditor-atostf
+        description: "This role is intended for use by customer staff for review / auditing purposes."
+        assumedBy:
+          - type: account
+            principal: 'arn:aws:iam::861491417048:root'
+        policies:
+          awsManaged:
+            - ReadOnlyAccess
+
+# Group Sets
+groupSets:
+  - deploymentTargets:
+      organizationalUnits:
+        - Infrastructure
+      accounts:
+        - Network
+    groups:
+      - name: atos-pcsaws-discovery-users
+        policies:
+          awsManaged:
+            - ReadOnlyAccess
+          customerManaged:
+            - atos-pcsaws-discovery-users-iam-policy
+
+# User Sets
+userSets:
+  - deploymentTargets:
+      accounts:
+        - Network
+    users:
+      - username: atos-pcsaws-discovery-user
+        group: atos-pcsaws-discovery-users
+  - deploymentTargets:
+      organizationalUnits:
+        - Infrastructure
+    users:
+      - username: atos-pcsaws-discovery-user
+        group: atos-pcsaws-discovery-users
