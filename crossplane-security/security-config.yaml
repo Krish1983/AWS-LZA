@@ -1,0 +1,331 @@
+#### security-config file - Security Services Configuration ###########
+
+homeRegion: &HOME_REGION us-east-1
+
+#####################################
+# AWS Config Configuration
+#####################################
+awsConfig:
+  enable: true
+  enableConfigurationRecorder: true
+  enableDeliveryChannel: true
+  ruleSets:
+    - deploymentTargets:
+        organizationalUnits:
+          - Root
+      rules:
+        - name: ec2-security-group-attached-to-eni
+        - name: ec2-stopped-instance
+        - name: ec2-volume-inuse-check
+        - name: ebs-snapshot-public-read-prohibited
+        - name: ec2-instance-managed-by-systems-manager
+        - name: s3-bucket-ssl-requests-only
+        - name: s3-bucket-public-access-prohibited
+        - name: s3-bucket-public-read-prohibited
+        - name: s3-bucket-public-write-prohibited
+        - name: s3-bucket-server-side-encryption-enabled
+        - name: s3-bucket-versioning-enabled
+        - name: cloudtrail-enabled
+        - name: cloudtrail-s3-dataevents-enabled
+        - name: cloudwatch-alarm-action-check
+        - name: guardduty-enabled-centralized
+        - name: securityhub-enabled
+        - name: access-keys-rotated
+          parameters:
+            maxAccessKeyAge: 90
+        - name: iam-password-policy
+        - name: iam-policy-no-statements-with-admin-access
+        - name: iam-user-mfa-enabled
+        - name: mfa-enabled-for-iam-console-access
+        - name: root-access-key-check
+
+#####################################
+# CloudWatch Configuration
+#####################################
+cloudWatch:
+  metricSets:
+    - regions:
+        - *HOME_REGION
+        - us-west-1
+      deploymentTargets:
+        organizationalUnits:
+          - Root
+      metrics:
+        - filterName: AtosRootAccountUsage
+          logGroupName: aws-cloudtrail
+          filterPattern: '{$.userIdentity.type = "Root" && $.userIdentity.invokedBy NOT EXISTS && $.eventType != "AwsServiceEvent"}'
+          metricTransformations:
+            - metricName: RootAccountUsage
+              metricNamespace: ATOS/Security
+              metricValue: "1"
+              defaultValue: 0
+        - filterName: AtosUnauthorizedAPICalls
+          logGroupName: aws-cloudtrail
+          filterPattern: '{($.errorCode = "*UnauthorizedOperation") || ($.errorCode = "AccessDenied*")}'
+          metricTransformations:
+            - metricName: UnauthorizedAPICalls
+              metricNamespace: ATOS/Security
+              metricValue: "1"
+              defaultValue: 0
+        - filterName: AtosConsoleWithoutMFA
+          logGroupName: aws-cloudtrail
+          filterPattern: '{($.eventName = "ConsoleLogin") && ($.additionalEventData.MFAUsed != "Yes")}'
+          metricTransformations:
+            - metricName: ConsoleSigninWithoutMFA
+              metricNamespace: ATOS/Security
+              metricValue: "1"
+              defaultValue: 0
+
+  alarmSets:
+    - regions:
+        - *HOME_REGION
+      deploymentTargets:
+        organizationalUnits:
+          - Root
+      alarms:
+        - alarmName: AtosRootAccountUsage
+          alarmDescription: "Alarm when root account is used"
+          snsTopicName: AtosSecurityAlerts
+          metricName: RootAccountUsage
+          namespace: ATOS/Security
+          comparisonOperator: GreaterThanOrEqualToThreshold
+          evaluationPeriods: 1
+          period: 300
+          statistic: Sum
+          threshold: 1
+          treatMissingData: notBreaching
+        - alarmName: AtosUnauthorizedAPICalls
+          alarmDescription: "Alarm when unauthorized API calls are made"
+          snsTopicName: AtosSecurityAlerts
+          metricName: UnauthorizedAPICalls
+          namespace: ATOS/Security
+          comparisonOperator: GreaterThanOrEqualToThreshold
+          evaluationPeriods: 1
+          period: 300
+          statistic: Sum
+          threshold: 10
+          treatMissingData: notBreaching
+
+#####################################
+# GuardDuty Configuration
+#####################################
+guardDuty:
+  enable: true
+  excludeRegions: []
+  s3Protection:
+    enable: true
+    excludeRegions: []
+  eksProtection:
+    enable: true
+    excludeRegions: []
+  malwareProtection:
+    enable: true
+    excludeRegions: []
+  exportConfiguration:
+    enable: true
+    destinationType: S3
+    exportFrequency: FIFTEEN_MINUTES
+
+#####################################
+# Security Hub Configuration
+#####################################
+securityHub:
+  enable: true
+  regionAggregation: true
+  snsTopicName: AtosSecurityHubFindings
+  notificationLevel: MEDIUM
+  excludeRegions: []
+  standards:
+    - name: AWS Foundational Security Standard
+      enable: true
+      controlsToDisable:
+        - IAM.1  # Avoid breaking emergency access
+        - EC2.10 # Allow custom AMIs
+    - name: PCI DSS
+      enable: false
+    - name: CIS AWS Foundations Benchmark
+      enable: true
+      controlsToDisable:
+        - CIS.1.5  # Ensure IAM password policy requires minimum length (custom policy)
+        - CIS.1.6  # Ensure IAM password policy prevent password reuse (custom policy)
+
+#####################################
+# Macie Configuration
+#####################################
+macie:
+  enable: true
+  excludeRegions: []
+  policyFindingsPublishingFrequency: FIFTEEN_MINUTES
+  publishSensitiveDataFindings: true
+
+#####################################
+# Detective Configuration
+#####################################
+detective:
+  enable: true
+  excludeRegions: []
+
+#####################################
+# Access Analyzer Configuration
+#####################################
+accessAnalyzer:
+  enable: true
+
+#####################################
+# Certificate Manager
+#####################################
+certificateManager:
+  lifecycleRules:
+    - ruleName: AtosCertificateExpiry
+      targetType: account
+      targetValue: 30
+      snsTopicName: AtosCertificateAlerts
+      regions:
+        - *HOME_REGION
+        - us-west-1
+
+#####################################
+# Key Management Service
+#####################################
+keyManagementService:
+  keys:
+    - name: AtosEBSKey
+      alias: alias/atos/ebs
+      policy: kms-policies/atos-ebs-key-policy.json
+      description: "Atos KMS key for EBS encryption"
+      enabled: true
+      enableKeyRotation: true
+      deploymentTargets:
+        organizationalUnits:
+          - Root
+    - name: AtosS3Key
+      alias: alias/atos/s3
+      policy: kms-policies/atos-s3-key-policy.json
+      description: "Atos KMS key for S3 encryption"
+      enabled: true
+      enableKeyRotation: true
+      deploymentTargets:
+        organizationalUnits:
+          - Root
+    - name: AtosSecretsKey
+      alias: alias/atos/secrets
+      policy: kms-policies/atos-secrets-key-policy.json
+      description: "Atos KMS key for Secrets Manager encryption"
+      enabled: true
+      enableKeyRotation: true
+      deploymentTargets:
+        organizationalUnits:
+          - Root
+    - name: AtosLambdaKey
+      alias: alias/atos/lambda
+      policy: kms-policies/atos-lambda-key-policy.json
+      description: "Atos KMS key for Lambda environment variables"
+      enabled: true
+      enableKeyRotation: true
+      deploymentTargets:
+        organizationalUnits:
+          - PCS
+          - Infrastructure
+
+#####################################
+# SNS Topics for Security Alerts
+#####################################
+snsTopics:
+  - name: AtosSecurityAlerts
+    displayName: "Atos Security Alerts"
+    kmsKeyName: AtosSecretsKey
+    deploymentTargets:
+      organizationalUnits:
+        - Root
+  - name: AtosSecurityHubFindings
+    displayName: "Atos Security Hub Findings"
+    kmsKeyName: AtosSecretsKey
+    deploymentTargets:
+      organizationalUnits:
+        - Root
+  - name: AtosCertificateAlerts
+    displayName: "Atos Certificate Expiry Alerts"
+    kmsKeyName: AtosSecretsKey
+    deploymentTargets:
+      organizationalUnits:
+        - Root
+
+#####################################
+# Secrets Manager
+#####################################
+secretsManager:
+  secrets:
+    - name: atos-ad-admin-secret
+      description: "Managed Active Directory Administrator Password"
+      generateSecretString:
+        secretStringTemplate: '{"username": "admin"}'
+        generateStringKey: password
+        excludeCharacters: '"@/\'
+        includeSpace: false
+        passwordLength: 32
+        requireEachIncludedType: true
+      kmsKeyId: AtosSecretsKey
+      region: *HOME_REGION
+      account: Management
+
+#####################################
+# Systems Manager Session Manager
+#####################################
+sessionManager:
+  sessionManagerLogging:
+    sendToCloudWatchLogs: true
+    sendToS3: true
+    s3BucketName: atos-pcsaws-session-manager-logs
+    s3KeyPrefix: session-logs/
+    cloudWatchLogGroupName: /aws/sessionmanager
+    cloudWatchEncryptionEnabled: true
+
+#####################################
+# Firewall Manager
+#####################################
+firewallManager:
+  enable: true
+  policies:
+    - name: AtosWAFv2Policy
+      type: WAFv2
+      description: "Atos WAFv2 policy for web applications"
+      resourceType: ApplicationLoadBalancer
+      includeMap:
+        organizationalUnits:
+          - PCS
+          - Infrastructure
+      excludeMap:
+        accounts: []
+      remediationEnabled: true
+      resourceTags:
+        - key: "AtosWAFProtected"
+          value: "true"
+      securityServicePolicyData:
+        type: WAFv2
+        defaultAction: Allow
+        preProcessRuleGroups:
+          - name: AtosCustomRuleGroup
+            priority: 1
+        managedRuleGroups:
+          - name: AWSManagedRulesCommonRuleSet
+            priority: 10
+          - name: AWSManagedRulesKnownBadInputsRuleSet
+            priority: 20
+          - name: AWSManagedRulesAmazonIpReputationList
+            priority: 30
+    - name: AtosSecurityGroupPolicy
+      type: SecurityGroup
+      description: "Atos Security Group compliance policy"
+      resourceType: EC2Instance
+      includeMap:
+        organizationalUnits:
+          - PCS
+          - Infrastructure
+      excludeMap:
+        accounts: []
+      remediationEnabled: false
+      securityServicePolicyData:
+        type: SecurityGroup
+        securityGroups:
+          - id: sg-baseline
+            name: AtosBaseline
