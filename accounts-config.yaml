@@ -45,11 +45,6 @@ workloadAccounts:
     email: aws-infra-tnt4@example.com
     organizationalUnit: Infrastructure/Tnt4
 
-  - name: Infrastructure-Tnt5
-    description: Infrastructure tenant 5 account
-    email: aws-infra-tnt4@example.com
-    organizationalUnit: Infrastructure/Tnt5
-
 # Account-level configurations
 accountIds:
   Management: "123456789012"
@@ -60,7 +55,6 @@ accountIds:
   Infrastructure-Tnt0: "123456789017"
   Infrastructure-Tnt3: "123456789018"
   Infrastructure-Tnt4: "123456789019"
-  Infrastructure-Tnt4: "123456789020"
 
 # Governance configurations
 governanceConfig:
